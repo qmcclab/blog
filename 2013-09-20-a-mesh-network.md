@@ -1,7 +1,3 @@
-!!MODIFIED!!
-
-modified by windows gvim 
-
 mesh network看起来很牛，实际上也的确非常牛。这个小项目的初衷源于一个小小的需求：允许外网用户透过公司网络访问用户侧的一台设备。后来我对这张网络的期望越来越大，需求不断的叠加，最后演变成一个mesh network。由于各个互联节点分散在内外网，故需要用到vpn，所以题目就叫a mesh vpn network project。
 
 <!-- more -->
