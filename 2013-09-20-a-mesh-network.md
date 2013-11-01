@@ -1,7 +1,3 @@
-!!MODIFIED!!
-
-modified by windows gvim 
-
 mesh network看起来很牛，实际上也的确非常牛。这个小项目的初衷源于一个小小的需求：允许外网用户透过公司网络访问用户侧的一台设备。后来我对这张网络的期望越来越大，需求不断的叠加，最后演变成一个mesh network。由于各个互联节点分散在内外网，故需要用到vpn，所以题目就叫a mesh vpn network project。
 
 <!-- more -->
@@ -417,7 +413,7 @@ ip route add 192.168.22.0/24 via $home_VIP
 
 ### tinc配置
 
-引入动态路由后，tinc-up的配置得到极大的简化：
+引入动态路由后，所有节点的`tinc-up`配置得到极大的简化：
 
 **lab**
 
@@ -443,26 +439,11 @@ ip address add dev $INTERFACE $10.8.0.252
 
 ### 动态路由
 
-动态路由包含路由平台和动态路由协议。路由平台运行在linux服务器上，而动态路由协议则运行在路由平台上，可以将运行着路由平台的服务器看作一台路由器。
-
-#### 选择
-
-每次选择开源软件都很真痛苦，因为不知道选中的软件能活多久。譬如我之前为n2n歌功颂德，没几天，作者就说没时间维护，请关注fork，这不是坑爹吗？幸好开源的路由平台也没有太多的选择：quagga or bird。10年前曾试过zebra，稳定性实在太差，所以对quagga也不太感冒，加上bird已经在欧洲多个Internet exchanger部署，所以就选了bird。bird目前仅支持传统的RIP、BGP、OSPF，尚不支持babel、olsr等mesh network协议，因而路由协议就选了ospf，没有选择也是一种幸福。
-
-#### 安装
-
-**debian**
-
-`aptitude update && aptitude -t squeeze-backports install bird`
-
-**openwrt**
-
-`opkg update && opkg install bird4 birdc4`
-
+我选择了bird+osfp作为本项目的动态路由平台，关于bird信息请参考《bird on openwrt》[]
 
 #### 配置
 
-这里以`lab`和`corp`为例：
+以`lab`和`corp`为例：
 
 **lab**
 
@@ -518,33 +499,9 @@ protocol direct {
 }
 ```
 
-protocol direct的意思是将直连路由塞入ospf中参与协商，换句话说，通告给相连路由器，我这里有192.168.44.0/24和192.168.77.0/24这两个子网，请将目标地址属于这两个子网的数据包丢过来给我处理吧。
+`protocol direct`的意思是将直连路由塞入ospf中参与协商，换句话说，通告给相连路由器，我这里有`192.168.44.0/24`和`192.168.77.0/24`这两个子网，请将目标地址属于这两个子网的数据包丢过来给我处理吧。
 
-#### 常用指令
-
-**启动**
-
-debian：
-
-`# /etc/init.d/bird start`
-
-openwrt：
-
-`# /etc/init.d/bird4 start`
-
-**自启动**
-
-debian：
-
-`# /etc/init.d/bird enable`
-
-openwrt：
-
-`# /etc/init.d/bird4 enable`
-
-**查看状态**
-
-可以通过birdc/birdc4来查看bird平台状态
+可以通过birdc4来查看bird平台状态
 
 ```
 root@corp:~# birdc4 
@@ -571,11 +528,7 @@ bird>exit
 
 再用`ip route show`查看，就会发现bird已经将路由写入到kernel路由表中了，每条路由后面带有`proto bird`的后缀。
 
-> **NOTE** 手工设置的路由优先级最高，bird无法覆盖。
-
-**log**
-
-`tail -f /var/log/syslog | grep bird`
+> **NOTE** 手工设置的静态路由优先级最高，动态路由协议所学习到的路由优先级低，故OS优先选择静态路由。
 
 动态路由的引入极大地拓展tinc的应用场景，譬如在全国拥有大量分支机构的企业，就可以利用“交换+动态路由”模式在互联网上构建一张灵活的full mesh network。当然，tinc+动态路由并非万能，需满足以下条件：
 
@@ -707,18 +660,8 @@ tinc需要修改两个地方：
 
 ### 防火墙
 
-下面分别以lab和corp为例说明debian shorewall和OpenWRT shorewall-lite的安装和配置。
+在本项目中，我选择shorewall/shorewall-lite作为防火墙，关于shorewall/shorewall-lite请参考“shorewall-lite on openwrt”。
 
-shorewall主要是要理解zones，policy和rules，具体的就不献丑了，官网文档很详尽。另外，为了更好的排错，我用ulogd替代了syslog，默认情况下，netfilter利用syslog来记录，一是效率低，二是跟`/var/log/syslog`混在一起，改用ulogd后效率更高，而且可以将日志存放在单独的文件中。
-
-#### shorewall on debian
-
-##### 安装
-
-```
-root@lab:~ # echo "" >> /etc/apt/sources.list
-root@lab:~ # aptitude update && aptitude install shorewall ulogd
-```
 
 ##### 配置
 
@@ -834,310 +777,6 @@ root@lab:~ # /etc/init.d/ulogd start
 > **NOTE** 别把自己关在外面，希望我的提醒还不至于太晚。
 
 至此，a mesh vpn network完成了。
-
-####　shorewall-lite on OpenWRT
-
-shorewall依赖于perl，对于OpenWRT来说太庞大了。此外，假如有多个防火墙，则需要一套机制进行统一管理，于是诞生了shorewall-lite。
-
-今天，我们就在OpenWRT上体验一下shorewall-lite的魔力。
-图片
-
-admin(administrative system)安装了shorewall，firewall的配置文件均在admin中完成，随后通过shorewall compile来生成脚本，接着通过scp将该脚本拷贝至firewall的/etc/shorewall-lite/state目录，然后使用ssh远程执行firewall的shorewall-lite，将脚本转换成iptables rules。
-
-这就是shorewall-lite的运作原理。
-
-所以，首先安装admin的shorewall
-
-root@shorewall-centre-d6:/ # apt-get update && apt-get install shorewall
-
-    * 为每个firewall创建一个export目录
-
-root@shorewall-centre-d6:/ # make -p export/rb450g && cd export/rb450g
-
-    * 准备firewall配置文件
-
-对于debian系，需下载tarball，解压后将/usr/share/shorewall/configfiles中的文件拷贝至export目录。
-
-    * 调整firewall配置文件
-
-拷贝过来的配置文件均是空文件，需要自行调整配置。
-
-/etc/shorewall/export/rb450g/params
-
-```
-WAN_IF=eth0
-LAN_IF=br-lan
-OA_IF=br-oa
-VPN_IF=tun0
-LOG=ULOG
-```
-
-/etc/shorewall/export/rb450g/zones
-
-```
-fw      firewall
-oa      ipv4
-lan     ipv4
-wan     ipv4
-vpn     ipv4
-```
-
-/etc/shorewall/export/rb450g/interfaces
-
-```
-wan             $WAN_IF                 dhcp,tcpflags,logmartians,nosmurfs,sourceroute=0
-lan             $LAN_IF                 tcpflags,logmartians,nosmurfs,sourceroute=0
-vpn             $VPN_IF                 tcpflags,logmartians,nosmurfs,sourceroute=0
-oa              $OA_IF                  tcpflags,logmartians,nosmurfs,sourceroute=0
-```
-
-/etc/shorewall/export/rb450g/policy
-
-```
-$FW     all     ACCEPT
-lan     all     ACCEPT
-wan     all     DROP            $LOG    10/sec:40
-all     all     REJECT
-```
-
-/etc/shorewall/export/rb450g/rules
-
-```
-SECTION NEW
-Invalid(DROP)   wan             all
-
-###############
-# vpn2fw
-
-Ping(ACCEPT)    vpn             $FW
-SSH(ACCEPT)     vpn             $FW
-HTTP(ACCEPT)    vpn             $FW
-
-###############
-# wan2fw
-
-ACCEPT          wan             $FW     tcp     655
-ACCEPT          wan             $FW     udp     655
-SSH(ACCEPT)     wan             $FW
-```
-
-/etc/shorewall/export/rb450g/masq
-
-```
-$OA_IF          192.168.44.0/24 10.199.27.17
-$VPN_IF         192.168.44.0/24 10.8.0.65
-$WAN_IF         192.168.44.0/24 192.168.7.21
-```
-
-OpenWRT的准备工作
-
-创建`state`
-
-root@RB450G:/ # mkdir /etc/shorewall-lite/state
-
-禁用firewall。
-
-```bash
-root@RB450G:/ # /etc/init.d/firewall disable
-root@RB450G:/ # /etc/init.d/firewall stop
-```
-
-启用shorewall-lite
-
-```bash
-root@RB450G:/# /etc/init.d/shorewall-lite enable
-```
-
-    * 生成firewall脚本
-
-虽然可用`shorewall compile`来生成firewall脚本，然而Thomas M. Eastep自己写了个Makefile，然后通过`make`和`make install`这两个linux管理员耳熟能详的指令来编译和部署。
-
-root@shorewall-centre-d6:/etc/shorewall/export/rb450g# wget http://www1.shorewall.net/pub/shorewall/contrib/Shorewall-lite/
-
-然后调整Makefile中的HOST，域名和IP地址均可。若用域名，则需要确保可以解析。
-
-```bash
-root@shorewall-centre-d6:/etc/shorewall/export/rb450g# make
-shorewall compile -e . firewall
-Compiling...
-Processing /etc/shorewall/export/rb450g/params ...
-Processing /etc/shorewall/export/rb450g/shorewall.conf...
-   WARNING: Your capabilities file is out of date -- it does not contain all of the capabilities defined by Shorewall version 4.5.5.3
-Compiling /etc/shorewall/export/rb450g/zones...
-Compiling /etc/shorewall/export/rb450g/interfaces...
-Determining Hosts in Zones...
-Locating Action Files...
-Compiling /usr/share/shorewall/action.Drop for chain Drop...
-Compiling /usr/share/shorewall/action.Broadcast for chain Broadcast...
-Compiling /usr/share/shorewall/action.Invalid for chain Invalid...
-Compiling /usr/share/shorewall/action.NotSyn for chain NotSyn...
-Compiling /usr/share/shorewall/action.Reject for chain Reject...
-Compiling /etc/shorewall/export/rb450g/policy...
-Compiling /etc/shorewall/export/rb450g/notrack...
-Running /etc/shorewall/export/rb450g/initdone...
-Adding Anti-smurf Rules
-Adding rules for DHCP
-Compiling TCP Flags filtering...
-Compiling Kernel Route Filtering...
-Compiling Martian Logging...
-Compiling Accept Source Routing...
-Compiling /etc/shorewall/export/rb450g/tcrules...
-Compiling /etc/shorewall/export/rb450g/masq...
-Compiling MAC Filtration -- Phase 1...
-Compiling /etc/shorewall/export/rb450g/rules...
-Compiling /usr/share/shorewall/action.Invalid for chain %Invalid...
-Compiling MAC Filtration -- Phase 2...
-Applying Policies...
-Generating Rule Matrix...
-Creating iptables-restore input...
-Shorewall configuration compiled to /etc/shorewall/export/rb450g/firewall
-将会在当前目录生成firewall脚本，然后采用make install部署至firewall：
-root@shorewall-centre-d6:/etc/shorewall/export/rb450g# make install
-scp firewall firewall.conf root@192.168.44.1:/etc/shorewall-lite/state
-root@192.168.44.1's password:
-firewall                                                                                                                             100%   79KB  79.3KB/s   00:00   
-firewall.conf                                                                                                                        100%  862     0.8KB/s   00:00   
-ssh root@192.168.44.1 "/sbin/shorewall-lite restart"
-root@192.168.44.1's password:Restarting Shorewall Lite....
-Initializing...
-Processing init user exit ...
-Processing tcclear user exit ...
-Setting up Route Filtering...
-Setting up Martian Logging...
-Setting up Accept Source Routing...
-Setting up Proxy ARP...
-Setting up Traffic Control...
-Preparing iptables-restore input...
-Running /usr/sbin/iptables-restore...
-IPv4 Forwarding EnabledProcessing start user exit ...
-Processing started user exit ...
-done.
-touch: /var/lock/subsys/shorewall: No such file or directory
-```
-
-执行`make install`时，admin会将firewall、firewall.conf通过scp拷贝到firewall(rb450g)的/etc/shorewall-lite/state目录下，在firewall(rb450g)中执行/etc/init.d/shorewall-lite stop|start|restart均与该目录下的firewall脚本打交道。
-
-以下是make install执行成功后，/etc/shorewall-lite/state的文件列表
-
-```bash
-root@RB450G:/etc/shorewall-lite/state# ls -alh
-drwxr-xr-x    1 root     root        2.0K Sep  3 13:49 .
-drwxr-xr-x    1 root     root        2.0K Sep  3 11:05 ..
--rw-------    1 root     root           0 Sep  3 13:49 .dynamic
--rw-------    1 root     root        9.8K Sep  3 13:49 .iptables-restor
--rw-------    1 root     root        3.4K Sep  3 13:49 .modules
--rw-------    1 root     root          12 Sep  3 13:49 .modulesdir
--rw-r--r--    1 root     root        1.0K Sep  3 11:09 capabilities
--rwx------    1 root     root       79.3K Sep  3 13:43 firewall
--rw-------    1 root     root         862 Sep  3 13:43 firewall.conf
--rw-------    1 root     root         162 Sep  3 13:49 marks
--rw-------    1 root     root           0 Sep  3 13:49 nat
--rw-------    1 root     root         740 Sep  3 13:49 policies
--rw-------    1 root     root           0 Sep  3 13:49 proxyarp
--rw-------    1 root     root          29 Sep  3 13:49 restarted
--rw-------    1 root     root          74 Sep  3 13:49 state
--rw-------    1 root     root         110 Sep  3 13:49 zones
-```
-
-### tricks
-
-**慎用iptables -F**
-
-在清除规则之前，请先确认Chain INPUT的默认poliy，假如是：`Chain INPUT (policy DROP 0 packets, 0 bytes)`，则需要先`iptables -P INPUT ACCEPT`，然后`iptables -F`，否则会把自己锁在系统之外。
-
-**涉及的网卡需起来**
-
-在测试的过程中，发现tinc还没起来，导致shorewall make install失败。
-将tinc配置好后，再make install就成功了。
-
-**log**
-
-选用shorewall/shorewall-lite的一个重要原因是shorewall log可根据`源zone+目的zones`分组，使得管理员可以迅速定位出错的规则。举个例子：
-
-从lab中telnet corp的tinc vpn地址失败，于是查看双方的log日志，lab的日志无异样，corp则找到蛛丝马迹：
-
-```bash
-# tail -f /var/log/ulogd.syslogemu | grep 10.8.0.65
-Sep  3 13:27:14 corp Shorewall:vpn2fw:REJECT: IN=tun0 OUT= MAC= SRC=10.8.0.1 DST=10.8.0.65 LEN=60 TOS=10 PREC=0x00 TTL=64 ID=19084 DF PROTO=TCP SPT=41748 DPT=23 SEQ=1825983957 ACK=0 WINDOW=5840 SYN URGP=0 
-```
-
-该log表明，10.8.0.1 telnet 10.8.0.65不满足vpn2fw的policy或rules，于是，我们只要在`/etc/shorewall/export/rb450g/rules`中的vpn2fw区域添加一条`TELNET(ACCEPT)    vpn    $FW`即可。
-
-以下是shorewall的log配置
-
-debian
-
-```bash
-# sudo apt-get update
-# sudo apt-get install iptables-mod-ulog kmod-ipt-ulog ulogd ulogd-mod-extra
-# /etc/init.d/ulogd start
-```
-
-OpenWRT
-
-```bash
-# opkg update
-# opkg install iptables-mod-ulog kmod-ipt-ulog ulogd ulogd-mod-extra
-# /etc/init.d/ulogd start
-```
-
-排错时再开启ulogd 默认情况下，会将log写到/var/log/ulogd.syslogemu中
-
-shorewall极大简化了iptables的管理，然而与pf相比还是稍逊一筹，主要是shorewall的配置文件太多了。pf只需要一个配置文件，要简单、可爱得多。我认为它是世界上最优雅的防火墙。以lab为例：
-
-/etc/pf.conf
-
-```
-wan_if = eth0
-vpn_if = tun0
-lab_vpn_net = "10.8.0.0/24"
-User1_vpn_net = "10.8.0.32/27"
-corp_vpn_net = "10.8.0.64/27"
-
-table <lab_net> { "192.168.33.0/24", "192.168.55.0/24"
-                  "192.168.66.0/24", "192.168.88.0/24"
-                  "192.168.100.0/24", "172.16.33.0/24"
-}
-
-###############
-# 1:1 nat
-
-pass on tun0 from 192.168.33.231 to any binat-to 10.8.0.2
-pass on tun0 from 192.168.33.232 to any binat-to 10.8.0.3
-pass on tun0 from 192.168.33.233 to any binat-to 10.8.0.4
-pass on tun0 from 192.168.33.234 to any binat-to 10.8.0.5
-pass on tun0 from 192.168.66.21 to any binat-to 10.8.0.6
-pass on tun0 from 192.168.66.22 to any binat-to 10.8.0.7
-pass on tun0 from 192.168.66.23 to any binat-to 10.8.0.8
-pass on tun0 from 192.168.55.120 to any binat-to 10.8.0.9
-pass on tun0 from 192.168.88.120 to any binat-to 10.8.0.10
-
-###############
-# masq
-
-# lab中不需要用到masq，故以下配置被注释掉
-# match out on $ext_if from !($vpn_if) to any nat-to ($vpn_if)
-
-block all
-
-###############
-# rules
-
-# wan2fw
-permit proto { udp, tcp } from any to $wan_if port 655
-
-# vpn2net
-permit proto tcp from $User1_vpn_net to <lab_net> port { 22,80,443 }
-permit from $corp_vpn_net to <lab_net>
-
-# all2all
-permit proto icmp all
-```
-
-pf.conf支持table、list，甚至嵌套，大大减少了rules的条数，易于维护。
-
-完成防火墙配置后，还要调整tinc配置。
-
 
 ## openbsd&pfsense
 
