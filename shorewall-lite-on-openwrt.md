@@ -229,7 +229,7 @@ Sep  3 13:27:14 corp Shorewall:vpn2fw:REJECT: IN=tun0 OUT= MAC= SRC=10.8.0.1 DST
 
 debian
 
-```bash
+```
 # sudo apt-get update
 # sudo apt-get install iptables-mod-ulog kmod-ipt-ulog ulogd ulogd-mod-extra
 # /etc/init.d/ulogd start
@@ -237,7 +237,7 @@ debian
 
 OpenWRT
 
-```bash
+```
 # opkg update
 # opkg install iptables-mod-ulog kmod-ipt-ulog ulogd ulogd-mod-extra
 # /etc/init.d/ulogd start
