@@ -15,37 +15,37 @@ router id 10.8.0.254;
 debug protocols all;
 
 protocol kernel {
-        persist;                # Don't remove routes on bird shutdown
-        scan time 20;           # Scan kernel routing table every 20 seconds
-        export all;             # Default is export none
+    persist;                # Don't remove routes on bird shutdown
+    scan time 20;           # Scan kernel routing table every 20 seconds
+    export all;             # Default is export none
 }
 
 protocol device {
-        scan time 10;           # Scan interfaces every 10 seconds
+    scan time 10;           # Scan interfaces every 10 seconds
 }
 
 protocol direct {
-        interface "eth0";
+    interface "eth0";
 }
 
 protocol static {
-       debug all;
+    debug all;
 }
 
 protocol ospf {
-        import all;
-        export all;
-        area 0.0.0.0 {
-                interface "tun0" {
-                        hello 9;
-                        retransmit 6;
-                        cost 10;
-                        transmit delay 5;
-                        dead count 60;
-                        wait 10;
-                        type pointopoint;
-                };
+    import all;
+    export all;
+    area 0.0.0.0 {
+        interface "tun0" {
+            hello 9;
+            retransmit 6;
+            cost 10;
+            transmit delay 5;
+            dead count 60;
+            wait 10;
+            type pointopoint;
         };
+    };
 }
 ```
 
@@ -56,7 +56,7 @@ bird的配置与lab几乎一致，区别是
 ```
 route id 10.8.0.252;
 protocol direct {
-        interface "br-lan", "wlan0";
+    interface "br-lan", "wlan0";
 }
 ```
 
@@ -120,6 +120,4 @@ User2    | 10.8.0.96/27
 home     | 10.8.0.128/27
 
 下面以lab:monitor与User2:storage之间的通信为例，monitor和storage这两个主机的IP地址处于冲突状态，原本无法相互通信。
-
-l
 
