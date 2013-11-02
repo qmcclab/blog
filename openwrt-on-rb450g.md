@@ -1,23 +1,78 @@
 
-> **NOTE** 本文严重参考http://wiki.hwmn.org/w/Mikrotik_RouterBoard_450G，不敢冒功，特此指出。
+> **NOTE** 本文严重参考(Mikro_RouterBoard_450G)[http://wiki.hwmn.org/w/Mikrotik_RouterBoard_450G]，不敢冒功，特此指出。
 
 RB450G是MikkroTik公司出品的一款内置RouterOS的MIPS架构主板，CPU680Mhz，内存256M，nand512M，提供5个千兆网口，支持MicroSD和serial，性能远高于现市面上的无线路由设备。当然，它的售价也要高出许多。硬件规格高是一方面，另一个原因是RouterOS，它提供的路由、交换、VPN等功能特性非常丰富，目前在中低端市场，特别是欧洲占据了很大的市场份额。
 
-RouterOS虽然基于linux，但却不开源，无法安装第三方软件包，其灵活性比OpenWRT差得多，因而本文就教大家如何把OpenWRT AA刷入RB450G。
+RouterOS虽然基于linux，但却不开源，无法安装第三方软件包，其灵活性比OpenWRT差得多，因而本文就教大家如何把OpenWRT 12.09刷入RB450G。
 
-准备：
+## 工具
 
-- 1台PC，windows或linux均可；
-- 1条null modern串口线；
-- 1条普通网线；
+- 1台PC，提供dhcp和ssh服务，windows或linux均可，；
+- 1条null modern串口线+1个usb转RS232转接线；
+- 1条网线；
+- 下载OpenWRT的(vmlinux.elf)[http://downloads.openwrt.org/attitude_adjustment/12.09/ar71xx/nand/openwrt-ar71xx-nand-vmlinux.elf] 和(rootfs.tar.gz)[http://downloads.openwrt.org/attitude_adjustment/12.09/ar71xx/nand/openwrt-ar71xx-nand-rootfs.tar.gz]
 
-windows需安装tftpd32和bitvise SSH server这两个软件，其中，tftpd32负责提供dhcp server功能，bitvise SSH server负责提供ssh服务。
+我所使用的PC时windows，因而安装了tftpd32和bitvise SSH server这两个软件，其中，tftpd32负责提供dhcp server功能，bitvise SSH server负责提供ssh服务。
 
-nand说明
+## RB450G介绍
 
-boot loader设置
+> **NOTE ** 以下说明适用于OpenWRT，不一定适用于RouterOS。
 
-# 启动
+### nand和分区
+
+nand和硬盘有些区别，它本身并无分区表的概念，直接由OpenWRT的kernel分配，因而在编译OpenWRT时就需要制定分区的大小，如下所示：
+
+```
+# dmesg | less
+...
+[    3.100000] Creating 3 MTD partitions on "NAND01GW3B2CN6":
+[    3.110000] 0x000000000000-0x000000040000 : "booter"
+[    3.110000] 0x000000040000-0x000000400000 : "kernel"
+[    3.120000] 0x000000400000-0x000008000000 : "rootfs"
+[    3.130000] mtd: partition "rootfs" set to be root filesystem
+...
+```
+
+openwrt kernel将nand划分为三个分区：booter、kernel和rootfs。其中booter分区不可读，作用未知，剩余两个的作用就很明显了，kernel分区保存的openwrt kernel，rootfs则是openwrt 根文件系统，mountpoint也就是“/”。
+
+** kernel分区 **
+
+kernel分区大小为4MiB，openwrt kernel尺寸在3.6-3.8MiB之间，加上yaffs的metadata和保留空间，正常情况下无法塞入kernel分区，因而openwrt耍了一个小聪明，将3.8MiB的kernel塞入6MiB[^footnote1]的kernel分区中。
+
+### boot loader
+
+RB450G提供了一个私有的bootloader：Routerboot。该bootloader提供了两份拷贝：一个保存于可读写的memory中，允许用户升级，甚至刷成第三方的bootloader；另一个保存于只读memory中，作为备份之用。当可读写的拷贝出现问题后，用户可以切换到备份拷贝，继续完成系统引导，所以说，RB450G的可玩性极强，不必担心刷成砖头。这是我喜欢RB450G的第二个原因。
+
+### serial
+
+RB450G提供了一个串口（serial），这对管理员来说非常方便，使用一台PC+一条null modern就可以登录操作系统进行调试，这是我喜欢RB450G的第三个原因。
+
+在windows下，使用xshell或secucrt均可正常登录openwrt，linux下则建议使用kermit，minicom不靠谱。
+
+### 交换机端口
+
+```
+  +-----------+       +-----------+
+  |           | eth0  |           |
+  |           +-------+----------5+-Eth1/PoE
+  |           |       |           |
+  |  AR7161   |       | AR8316 +-1+-Eth2
+  |           | eth1  |        +-4+-Eth3
+  |           +-------+0-------+-3+-Eth4
+  |           |       |        +-2+-Eth5
+  +-----------+       +-----------+
+```
+
+## 准备工作
+
+windows dhcp
+
+bitvison ssh
+
+
+## 刷机
+
+** 修改启动参数 **
 
 加电后，立刻在SecuCRT中敲任意键，进入`boot option`界面
 
@@ -25,29 +80,25 @@ boot loader设置
 
 内存区的一部分用于跑临时OpenWRT，剩余的125M挂载到`/tmp`目录。
 
-# 备份
+** 备份RouterOS **
 
 1. 通过winbox连接RB450G，备份出license.key，具体请参考RouterOS的官方文档。
-2. 备份kernel和rootfs
+2. 备份RouterOS的kernel和rootfs
 
         # cd /tmp
         # dd if=/dev/mtd5 | gzip -9 > routeros_kernel.img.gz
         # dd if=/dev/mtd6 | gzip -9 > routeros_rootfs.img.gz
         # scp routeros_kernel.img.gz routeros_rootfs.img.gz username@laptop.ip:/e//backup
 
-> **WARN**
+> **NOTE**
 >
 > 1. 创建rootfs.img.gz的过程非常慢，估计是gzip用了-9这个参数。
 > 2. 创建rootfs.img.gz结束后，跳出xx的提示，
 kernel.img.gz为1.8M，rootfs.img.gz为123.3M，尺寸之和两者正好是125.1M，因而不确定通过dd备份出来的rootfs是否完整。在原文中，作者也没有做倒换测试，后果自负。
 
-# 下载
+** 灌入 **
 
-从`http://downloads.openwrt.org/attitude_adjustment/12.09/ar71xx/nand/`下载openwrt-ar71xx-nand-vmlinux.elf和openwrt-ar71xx-nand-rootfs.tar.gz这两个文件，并存放到笔记本的`e:\backup`目录中，一会儿会用到。
-
-## 刷机
-
-```bash
+```
 # cd /tmp
 # scp username@laptop.ip:/e//backup//openwrt-ar71xx-nand-vmlinux.elf .
 # scp username@laptop.ip:/e//backup//openwrt-ar71xx-nand-rootfs.tar.gz .
@@ -63,11 +114,9 @@ kernel.img.gz为1.8M，rootfs.img.gz为123.3M，尺寸之和两者正好是125.1
 # umount /mnt
 ```
 
-> **NOTE**
->
-> `mtd erase rootfs`的时候，出现bad erase block的提示，我放狗搜了一下，发现是(正常现象)[http://wiki.openmoko.org/wiki/NAND_bad_blocks]，只要bad block的尺寸不超过1%即可放心使用。每个block大小为1/2KB。
+> **NOTE** `mtd erase rootfs`的时候，出现bad erase block的提示，这是(正常现象)[http://wiki.openmoko.org/wiki/NAND_bad_blocks]，只要bad block的尺寸不超过nand大小的1%即可放心使用。每个block大小为1/2KB。
 
-刷完之后，reboot即可进入OpenWRT AA。
+刷完之后，reboot即可进入OpenWRT 12.09。
 
 ## nand bad block
 
