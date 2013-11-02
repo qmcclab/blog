@@ -1,128 +1,3 @@
-shorewall-lite on openwrt
-
-##### 安装
-
-```
-root@lab:~ # echo "" >> /etc/apt/sources.list
-root@lab:~ # aptitude update && aptitude install shorewall ulogd
-```
-
-##### 配置
-
-/etc/default/shorewall
-
-```
-startup=1
-...
-```
-
-shorewall.conf
-
-```bash
-# 修改以下参数：
-LOGFILE=/var/log/ulog/syslogemu.log
-LOGFORMAT=""
-# 将所有info替换成$LOG
-
-...
-```
-
-/etc/shorewall/params
-
-```
-INT_IF=eth0
-VPN_IF=tun0
-LOG=ULOG
-```
-
-/etc/shorewall/zones
-
-```
-fw      firewall
-net     ipv4
-vpn     ipv4
-```
-
-/etc/shorewall/interfaces
-
-```
-net     $INT_IF            dhcp,tcpflags,logmartians,nosmurfs,sourceroute=0
-vpn     $VPN_IF            dhcp,tcpflags,logmartians,nosmurfs,sourceroute=0
-```
-
-/etc/shorewall/policy
-
-```
-$FW             net             ACCEPT
-$FW             vpn             ACCEPT
-vpn             $FW             ACCEPT
-net             all             DROP            $LOG
-all             all             REJECT          $LOG
-```
-
-/etc/shorewall/rules
-
-```
-###############
-# net2fw
-
-# allow ssh,http,https,655,80,2003 from net to $FW
-ACCEPT          net             $FW             tcp             ssh,http,https,2003 
-ACCEPT          net             $FW             udp,tcp         655
-
-###############
-# vpn2net
-
-# allow ssh,http from USER1 to LAB 
-ACCEPT     vpn:10.8.0.32/27     net:192.168.33.0/24,192.168.66.0/24  tcp     ssh,http
-
-# allow all from CORP to LAB
-ACCEPT          vpn:10.8.0.64/27        net:192.168.33.0/24     all     
-ACCEPT          vpn:10.8.0.64/27        net:192.168.55.0/24     all     
-ACCEPT          vpn:10.8.0.64/27        net:192.168.66.0/24     all     
-ACCEPT          vpn:10.8.0.64/27        net:192.168.88.0/24     all     
-ACCEPT          vpn:10.8.0.64/27        net:192.168.100.0/24    all     
-ACCEPT          vpn:10.8.0.64/27        net:172.16.33.0/24      all     
-
-###############
-# net2vpn
-
-ACCEPT  net:192.168.33.0/24     vpn     all
-ACCEPT  net:192.168.66.0/24     vpn     all
-ACCEPT  net:10.5.1.0/24         vpn     all
-ACCEPT  net:172.16.33.0/24      vpn     all
-
-###############
-# all2all
-
-Ping(ACCEPT)   all             all
-```
-
-/etc/shorewall/nat
-
-```
-10.8.0.2       tun0            192.168.33.231     No               No
-10.8.0.3       tun0            192.168.33.232     No               No
-10.8.0.4       tun0            192.168.33.233     No               No
-10.8.0.5       tun0            192.168.33.234     No               No
-10.8.0.6       tun0            192.168.66.21      No               No
-10.8.0.7       tun0            192.168.66.22      No               No
-10.8.0.8       tun0            192.168.66.23      No               No
-10.8.0.9       tun0            192.168.55.120     No               No
-10.8.0.10      tun0            192.168.88.120     No               No
-```
-
-```
-root@lab:~ # shorewall check
-root@lab:~ # shorewall restart
-root@lab:~ # /etc/init.d/ulogd start
-```
-
-> **NOTE** 别把自己关在外面，希望我的提醒还不至于太晚。
-
-至此，a mesh vpn network完成了。
-
-####　shorewall-lite on OpenWRT
 
 shorewall依赖于perl，对于OpenWRT来说太庞大了。此外，假如有多个防火墙，则需要一套机制进行统一管理，于是诞生了shorewall-lite。
 
@@ -135,17 +10,17 @@ admin(administrative system)安装了shorewall，firewall的配置文件均在admin中完成，
 
 所以，首先安装admin的shorewall
 
-root@shorewall-centre-d6:/ # apt-get update && apt-get install shorewall
+`root@shorewall-centre-d6:/ # apt-get update && apt-get install shorewall`
 
-    * 为每个firewall创建一个export目录
+* 为每个firewall创建一个export目录
 
-root@shorewall-centre-d6:/ # make -p export/rb450g && cd export/rb450g
+    root@shorewall-centre-d6:/ # make -p export/rb450g && cd export/rb450g
 
-    * 准备firewall配置文件
+* 准备firewall配置文件
 
 对于debian系，需下载tarball，解压后将/usr/share/shorewall/configfiles中的文件拷贝至export目录。
 
-    * 调整firewall配置文件
+* 调整firewall配置文件
 
 拷贝过来的配置文件均是空文件，需要自行调整配置。
 
@@ -220,7 +95,7 @@ OpenWRT的准备工作
 
 创建`state`
 
-root@RB450G:/ # mkdir /etc/shorewall-lite/state
+    root@RB450G:/ # mkdir /etc/shorewall-lite/state
 
 禁用firewall。
 
@@ -235,11 +110,11 @@ root@RB450G:/ # /etc/init.d/firewall stop
 root@RB450G:/# /etc/init.d/shorewall-lite enable
 ```
 
-    * 生成firewall脚本
+* 生成firewall脚本
 
 虽然可用`shorewall compile`来生成firewall脚本，然而Thomas M. Eastep自己写了个Makefile，然后通过`make`和`make install`这两个linux管理员耳熟能详的指令来编译和部署。
 
-root@shorewall-centre-d6:/etc/shorewall/export/rb450g# wget http://www1.shorewall.net/pub/shorewall/contrib/Shorewall-lite/
+    root@shorewall-centre-d6:/etc/shorewall/export/rb450g# wget http://www1.shorewall.net/pub/shorewall/contrib/Shorewall-lite/
 
 然后调整Makefile中的HOST，域名和IP地址均可。若用域名，则需要确保可以解析。
 
