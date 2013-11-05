@@ -1,7 +1,7 @@
 
 > **NOTE** 本文严重参考[Mikro_RouterBoard_450G](http://wiki.hwmn.org/w/Mikrotik_RouterBoard_450G)，不敢冒功，特此指出。
 
-RB450G是MikkroTik公司出品的一款内置RouterOS的MIPS架构主板，CPU680Mhz，内存256M，nand512M，提供5个千兆网口，支持MicroSD和serial，性能远高于现市面上的无线路由设备。当然，它的售价也要高出许多。硬件规格高是一方面，另一个原因是RouterOS，它提供的路由、交换、VPN等功能特性非常丰富，目前在中低端市场，特别是欧洲占据了很大的市场份额。
+RB450G是MikkroTik公司出品的一款内置RouterOS的MIPS架构主板，CPU680Mhz，内存256M，nand512M，提供5个千兆网口和serial口，支持MicroSD，性能远高于现市面上的无线路由设备。当然，它的售价也要高出许多。硬件规格高是一方面，另一个原因是RouterOS，它提供的路由、交换、VPN等功能特性非常丰富，目前在中低端市场，特别是欧洲占据了很大的市场份额。
 
 RouterOS虽然基于linux，但却不开源，无法安装第三方软件包，其灵活性比OpenWRT差得多，因而本文就教大家如何把OpenWRT 12.09刷入RB450G。
 
