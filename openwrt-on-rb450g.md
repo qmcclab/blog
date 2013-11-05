@@ -1,5 +1,5 @@
 
-> **NOTE** 本文严重参考(Mikro_RouterBoard_450G)[http://wiki.hwmn.org/w/Mikrotik_RouterBoard_450G]，不敢冒功，特此指出。
+> **NOTE** 本文严重参考[Mikro_RouterBoard_450G](http://wiki.hwmn.org/w/Mikrotik_RouterBoard_450G)，不敢冒功，特此指出。
 
 RB450G是MikkroTik公司出品的一款内置RouterOS的MIPS架构主板，CPU680Mhz，内存256M，nand512M，提供5个千兆网口，支持MicroSD和serial，性能远高于现市面上的无线路由设备。当然，它的售价也要高出许多。硬件规格高是一方面，另一个原因是RouterOS，它提供的路由、交换、VPN等功能特性非常丰富，目前在中低端市场，特别是欧洲占据了很大的市场份额。
 
@@ -10,7 +10,9 @@ RouterOS虽然基于linux，但却不开源，无法安装第三方软件包，�
 - 1台PC，提供dhcp和ssh服务，windows或linux均可，；
 - 1条null modern串口线+1个usb转RS232转接线；
 - 1条网线；
-- 下载OpenWRT的(vmlinux.elf)[http://downloads.openwrt.org/attitude_adjustment/12.09/ar71xx/nand/openwrt-ar71xx-nand-vmlinux.elf] 和(rootfs.tar.gz)[http://downloads.openwrt.org/attitude_adjustment/12.09/ar71xx/nand/openwrt-ar71xx-nand-rootfs.tar.gz]
+- 下载OpenWRT 12.09的[vmlinux-initramfs.elf]()、[vmlinux.elf](http://downloads.openwrt.org/attitude_adjustment/12.09/ar71xx/nand/openwrt-ar71xx-nand-vmlinux.elf)和[rootfs.tar.gz](http:///downloads.openwrt.org/attitude_adjustment/12.09/ar71xx/nand/openwrt-ar71xx-nand-rootfs.tar.gz)
+
+> **NOTE** 
 
 我所使用的PC时windows，因而安装了tftpd32和bitvise SSH server这两个软件，其中，tftpd32负责提供dhcp server功能，bitvise SSH server负责提供ssh服务。
 
@@ -63,11 +65,19 @@ RB450G提供了一个串口（serial），这对管理员来说非常方便，�
   +-----------+       +-----------+
 ```
 
+配置方式跟其它MIPS架构的交换机一样。
+
 ## 准备工作
 
-windows dhcp
+**tftpd32**
 
-bitvison ssh
+将`vmlinux-initramfs.elf`放在tftpd32的根目录，然后设置：
+
+
+
+**bitvise SSH server**
+
+没什么特别的，参照官方文档一步步设置就好了。主要用于openwrt的initram启动之后，备份RouterOS的kernel和rootfs。
 
 
 ## 刷机
@@ -76,7 +86,7 @@ bitvison ssh
 
 加电后，立刻在SecuCRT中敲任意键，进入`boot option`界面
 
-成功后将通过dhcp服务器下载initram的OpenWRT内核，并顺利进入操作系统，目前操作系统运行在内存中，因而需要把真正的img刷入nand
+成功后将通过dhcp server下载initramfs到内存，并顺利进入操作系统，目前操作系统运行在内存中，因而需要把真正的img刷入nand
 
 内存区的一部分用于跑临时OpenWRT，剩余的125M挂载到`/tmp`目录。
 
@@ -114,7 +124,7 @@ kernel.img.gz为1.8M，rootfs.img.gz为123.3M，尺寸之和两者正好是125.1
 # umount /mnt
 ```
 
-**NOTE** `mtd erase rootfs`的时候，出现bad erase block的提示，这是(正常现象)[http://wiki.openmoko.org/wiki/NAND_bad_blocks]，只要bad block的尺寸不超过nand大小的1%即可放心使用。每个block大小为1/2KB。
+**NOTE** `mtd erase rootfs`的时候，出现bad erase block的提示，这是[正常现象](http://wiki.openmoko.org/wiki/NAND_bad_blocks)，只要bad block的尺寸不超过nand大小的1%即可放心使用。每个block大小为1/2KB。
 
 刷完之后，reboot即可进入OpenWRT 12.09。
 
